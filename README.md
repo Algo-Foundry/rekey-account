@@ -2,7 +2,13 @@
 
 You are given 3 accounts - A, B and C. Rekey account A to a MultiSig account. The MultiSig account should contain B and C and have a threshold of 1. Once account A is rekeyed, use it to send 100,000 microAlgos (or 0.1 Algos) to account B.
 
-Write your solution in the skeleton code provided in `rekey.js`
+Write your solution in the skeleton code provided in `rekey.js`.
+
+### Setup instructions
+1. Install packages with `npm install`.
+
+### Running your script
+2. Run your script with `node rekey.js`.
 
 ### Key points to remember
 1. Accounts need to maintain a minimum balance of 100,000 microAlgos to carry out transactions.
