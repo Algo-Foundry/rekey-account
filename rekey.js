@@ -78,11 +78,11 @@ const submitToNetwork = async (signedTxn) => {
     rekeyTo: multsigaddr,
   });
 
-  let signedTxn = txn.signTxn(myAccountB.sk);
+  let signedTxn = algosdk.signMultisigTransaction(txn, multisigParams, myAccountB.sk);
   let txId = txn.txID().toString();
   console.log("Signed transaction with txID: %s", txId);
 
-  // await submitToNetwork(signedTxn);
+  await submitToNetwork(signedTxn.blob);
 
   // Send Algo to Account B
   params = await algodClient.getTransactionParams().do();
@@ -92,12 +92,11 @@ const submitToNetwork = async (signedTxn) => {
     to: myAccountB.addr,
     amount: 100000,
     suggestedParams: params,
-    rekeyTo: multsigaddr,
   });
 
-  signedTxn = algosdk.signMultisigTransaction(txn, multisigParams, myAccountC.sk);
-  txId = signedTxn.txID;
+  let multisigSignedTxn = algosdk.signMultisigTransaction(txn, multisigParams, myAccountC.sk);
+  txId = txn.txID().toString();
   console.log("Signed transaction with txID: %s", txId);
 
-  // await submitToNetwork(signedTxn);
+  await submitToNetwork(multisigSignedTxn.blob);
 })();
