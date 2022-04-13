@@ -1,4 +1,5 @@
 const algosdk = require("algosdk");
+const {mnemonicToSecretKey} = require("algosdk");
 
 const algodClient = new algosdk.Algodv2(
   process.env.ALGOD_TOKEN,
@@ -28,17 +29,74 @@ const submitToNetwork = async (signedTxn) => {
 };
 
 (async () => {
+  // Uncomment below if you want to generate account through code
   // Account A
-  let myAccountA = algosdk.generateAccount();
+  // let myAccountA = algosdk.generateAccount();
+  // console.log("My account A address: %s", myAccountA.addr);
+  //
+  // // // Account B
+  // let myAccountB = algosdk.generateAccount();
+  // console.log("My account B address: %s", myAccountB.addr);
+  //
+  // // // Account C
+  // let myAccountC = algosdk.generateAccount();
+  // console.log("My account C address: %s", myAccountC.addr);
+
+  // Write your code here
+  let myAccountA = mnemonicToSecretKey(process.env.MNEMONIC_A);
   console.log("My account A address: %s", myAccountA.addr);
 
   // Account B
-  let myAccountB = algosdk.generateAccount();
+  let myAccountB = mnemonicToSecretKey(process.env.MNEMONIC_B);
   console.log("My account B address: %s", myAccountB.addr);
 
   // Account C
-  let myAccountC = algosdk.generateAccount();
+  let myAccountC = mnemonicToSecretKey(process.env.MNEMONIC_C);
   console.log("My account C address: %s", myAccountC.addr);
-  
-  // Write your code here
+
+  // Create multisig address
+  let multisigParams = {
+    version: 1,
+    threshold: 1,
+    addrs: [
+      myAccountA.addr,
+      myAccountB.addr,
+      myAccountC.addr,
+    ],
+  };
+
+  let multsigaddr = algosdk.multisigAddress(multisigParams);
+  console.log("Multisig Address: " + multsigaddr);
+
+  // Rekey account A to Multisig address
+  let params = await algodClient.getTransactionParams().do();
+
+  let txn = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
+    from: myAccountA.addr,
+    to: myAccountA.addr,
+    amount: 0,
+    suggestedParams: params,
+    rekeyTo: multsigaddr,
+  });
+
+  let signedTxn = txn.signTxn(myAccountB.sk);
+  let txId = txn.txID().toString();
+  console.log("Signed transaction with txID: %s", txId);
+
+  await submitToNetwork(signedTxn);
+
+  // Send Algo to Account B
+  params = await algodClient.getTransactionParams().do();
+
+  txn = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
+    from: myAccountA.addr,
+    to: myAccountB.addr,
+    amount: 100000,
+    suggestedParams: params,
+    rekeyTo: multsigaddr,
+  });
+
+  signedTxn = algosdk.signMultisigTransaction(txn, multisigParams, myAccountC);
+
+  await submitToNetwork(signedTxn);
 })();
