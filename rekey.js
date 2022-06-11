@@ -1,13 +1,11 @@
+require('dotenv').config();
 const algosdk = require("algosdk");
-const {mnemonicToSecretKey} = require("algosdk");
 
 const algodClient = new algosdk.Algodv2(
   process.env.ALGOD_TOKEN,
   process.env.ALGOD_SERVER,
   process.env.ALGOD_PORT
 );
-
-const creator = algosdk.mnemonicToSecretKey(process.env.MNEMONIC_CREATOR);
 
 const submitToNetwork = async (signedTxn) => {
   // send txn
@@ -28,33 +26,47 @@ const submitToNetwork = async (signedTxn) => {
   return confirmedTxn;
 };
 
-(async () => {
-  // Uncomment below if you want to generate account through code
-  // Account A
-  // let myAccountA = algosdk.generateAccount();
-  // console.log("My account A address: %s", myAccountA.addr);
-  //
-  // // // Account B
-  // let myAccountB = algosdk.generateAccount();
-  // console.log("My account B address: %s", myAccountB.addr);
-  //
-  // // // Account C
-  // let myAccountC = algosdk.generateAccount();
-  // console.log("My account C address: %s", myAccountC.addr);
+const sendAlgos = async (sender, receiver, amount) => {
+  // create suggested parameters
+  const suggestedParams = await algodClient.getTransactionParams().do();
 
-  // Write your code here
-  let myAccountA = mnemonicToSecretKey(process.env.MNEMONIC_A);
+  let txn = algosdk.makePaymentTxnWithSuggestedParams(
+    sender.addr,
+    receiver.addr,
+    amount,
+    undefined,
+    undefined,
+    suggestedParams
+  );
+
+  // sign the transaction
+  const signedTxn = txn.signTxn(sender.sk);
+
+  const confirmedTxn = await submitToNetwork(signedTxn);
+};
+
+(async () => {
+  // Account A
+  let myAccountA = algosdk.generateAccount();
   console.log("My account A address: %s", myAccountA.addr);
 
   // Account B
-  let myAccountB = mnemonicToSecretKey(process.env.MNEMONIC_B);
+  let myAccountB = algosdk.generateAccount();
   console.log("My account B address: %s", myAccountB.addr);
 
   // Account C
-  let myAccountC = mnemonicToSecretKey(process.env.MNEMONIC_C);
+  let myAccountC = algosdk.generateAccount();
   console.log("My account C address: %s", myAccountC.addr);
 
-  // Create multisig address
+  // Creator
+  const creator = algosdk.mnemonicToSecretKey(process.env.MNEMONIC_CREATOR);
+
+  // Fund all accounts with 1 algo
+  await sendAlgos(creator, myAccountA, 1e6);
+  await sendAlgos(creator, myAccountB, 1e6);
+  await sendAlgos(creator, myAccountC, 1e6);
+  
+  // Create multsig account containing B and C
   let multisigParams = {
     version: 1,
     threshold: 1,
@@ -78,25 +90,27 @@ const submitToNetwork = async (signedTxn) => {
     rekeyTo: multsigaddr,
   });
 
-  let signedTxn = algosdk.signMultisigTransaction(txn, multisigParams, myAccountB.sk);
-  let txId = txn.txID().toString();
-  console.log("Signed transaction with txID: %s", txId);
+  let signedTxn = txn.signTxn(myAccountA.sk);
+  await submitToNetwork(signedTxn);
 
-  await submitToNetwork(signedTxn.blob);
-
-  // Send Algo to Account B
-  params = await algodClient.getTransactionParams().do();
-
-  txn = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
+  // Send Algos from A to B
+  console.log("Sending Algos from A to B...");
+  let payTxn = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
     from: myAccountA.addr,
     to: myAccountB.addr,
-    amount: 100000,
+    amount: 1e5, // 0.1 Algos
     suggestedParams: params,
   });
 
-  let multisigSignedTxn = algosdk.signMultisigTransaction(txn, multisigParams, myAccountC.sk);
-  txId = txn.txID().toString();
-  console.log("Signed transaction with txID: %s", txId);
+  // Try to submit txn by A
+  // let wrongTxn = payTxn.signTxn(myAccountA.sk);
+  // await submitToNetwork(wrongTxn);
 
-  await submitToNetwork(multisigSignedTxn.blob);
+  // Txn can be signed by B or C
+  let msSignedTxn = algosdk.signMultisigTransaction(payTxn, multisigParams, myAccountB.sk);
+  await submitToNetwork(msSignedTxn.blob);
+
+  // Check your work
+  console.log("Account A balance: ", (await algodClient.accountInformation(myAccountA.addr).do()).amount);
+  console.log("Account B balance: ", (await algodClient.accountInformation(myAccountB.addr).do()).amount);
 })();
