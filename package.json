@@ -9,7 +9,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "algosdk": "^1.14.0",
-    "dotenv": "^16.0.0"
+    "algosdk": "^2.0.0",
+    "dotenv": "^16.0.3"
   }
 }
